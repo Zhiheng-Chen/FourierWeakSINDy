@@ -107,7 +107,7 @@ for i in range(0,len(arr_sig_NR)):
     arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
     for j in range(0,N_noise):
         X_noisy = arr_X_noisy[:,:,i,j]
-        w_ident = WSINDy_bump_Lorenz(t_out,X_noisy,params_regression)
+        w_ident = WSINDy_bump_Lorenz(t_out,X_noisy,20,20,params_regression)
         errorNorm_rel,TPR = errorEval(w_true,w_ident)
         arr_relError[0,j] = errorNorm_rel
         arr_TPR[0,j] = TPR
@@ -133,7 +133,7 @@ for i in range(0,len(arr_sig_NR)):
     arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
     for j in range(0,N_noise):
         X_noisy = arr_X_noisy[:,:,i,j]
-        w_ident = WSINDy_bump_Lorenz(t_out,X_noisy,params_regression)
+        w_ident = WSINDy_bump_Lorenz(t_out,X_noisy,20,20,params_regression)
         errorNorm_rel,TPR = errorEval(w_true,w_ident)
         arr_relError[0,j] = errorNorm_rel
         arr_TPR[0,j] = TPR
@@ -213,4 +213,4 @@ data["TPR_FourierWSINDy_manual"] = TPR_FourierWSINDy_manual
 data["error_FourierWSINDy_auto"] = error_FourierWSINDy_auto
 data["TPR_FourierWSINDy_auto"] = TPR_FourierWSINDy_auto
 
-savemat("results.mat",data)
+savemat("results_noiseLevel.mat",data)

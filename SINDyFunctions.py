@@ -175,12 +175,10 @@ def func_phi_dot_bump(t,p,q,a,b):
     return phi_dot
 
 # bump weak SINDy
-def WSINDy_bump_Lorenz(t_out,X_out,params_regression):
+def WSINDy_bump_Lorenz(t_out,X_out,N_p,N_q,params_regression):
     # library
     Theta = calcTheta_Lorenz(t_out,X_out[:,0],X_out[:,1],X_out[:,2])
     # test function parameters
-    N_p = 20
-    N_q = 20
     array_p = np.linspace(1,100,N_p)
     array_q = np.linspace(1,100,N_q)
     # find V and V_dot for Riemann sums
