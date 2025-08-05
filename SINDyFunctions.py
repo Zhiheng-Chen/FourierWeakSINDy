@@ -297,6 +297,12 @@ def constructLS_Fourier(t_out,x_i,array_n,Theta):
     b_L = -V_dot_L@x_i[0:-1]
     b_R = -V_dot_R@x_i[1:]
     b_trapz = (b_L+b_R)/2
+    for n_n in range(0,N_n):
+        # add the offset term for cosine test functions
+        n = array_n[n_n]
+        Phi_n_cos,Phi_n_sin = func_phi_Fourier(t_out[0:],n,t_out[0],t_out[-1])
+        b_trapz[2*n_n] += Phi_n_cos[-1]*x_i[-1]-Phi_n_cos[0]*x_i[0]
+
     return A_trapz,b_trapz
 
 def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression):

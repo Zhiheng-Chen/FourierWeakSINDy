@@ -65,32 +65,6 @@ error_SINDy_manual = arr_relError_mean.flatten()
 TPR_SINDy_manual = arr_TPR_mean.flatten()
 print("!")
 
-# ---regular SINDy (auto threshold)---
-# sparse regression settings
-params_regression = dict()
-params_regression["method"] = "ridge"
-params_regression["lambda_sparse"] = "auto"
-params_regression["lambda_ridge"] = 0.001
-params_regression["N_loops"] = 100
-
-# evaluate error at different noise levels
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
-for i in range(0,len(arr_sig_NR)):
-    arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
-    arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
-    for j in range(0,N_noise):
-        X_noisy = arr_X_noisy[:,:,i,j]
-        w_ident = SINDy_Lorenz(t_out,X_noisy,params_regression)
-        errorNorm_rel,TPR = errorEval(w_true,w_ident)
-        arr_relError[0,j] = errorNorm_rel
-        arr_TPR[0,j] = TPR
-    arr_relError_mean[0,i] = np.average(arr_relError)
-    arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_SINDy_auto = arr_relError_mean.flatten()
-TPR_SINDy_auto = arr_TPR_mean.flatten()
-print("!")
-
 # ---bump weak SINDy (manual threshold)---
 # sparse regression settings
 params_regression = dict()
@@ -115,32 +89,6 @@ for i in range(0,len(arr_sig_NR)):
     arr_TPR_mean[0,i] = np.average(arr_TPR)
 error_bumpWSINDy_manual = arr_relError_mean.flatten()
 TPR_bumpWSINDy_manual = arr_TPR_mean.flatten()
-print("!")
-
-# ---bump weak SINDy (auto threshold)---
-# sparse regression settings
-params_regression = dict()
-params_regression["method"] = "ridge"
-params_regression["lambda_sparse"] = "auto"
-params_regression["lambda_ridge"] = 0.001
-params_regression["N_loops"] = 100
-
-# evaluate error at different noise levels
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
-for i in range(0,len(arr_sig_NR)):
-    arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
-    arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
-    for j in range(0,N_noise):
-        X_noisy = arr_X_noisy[:,:,i,j]
-        w_ident = WSINDy_bump_Lorenz(t_out,X_noisy,20,20,params_regression)
-        errorNorm_rel,TPR = errorEval(w_true,w_ident)
-        arr_relError[0,j] = errorNorm_rel
-        arr_TPR[0,j] = TPR
-    arr_relError_mean[0,i] = np.average(arr_relError)
-    arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_bumpWSINDy_auto = arr_relError_mean.flatten()
-TPR_bumpWSINDy_auto = arr_TPR_mean.flatten()
 print("!")
 
 # ---Fourier weak SINDy (manual threshold)---
@@ -170,47 +118,14 @@ error_FourierWSINDy_manual = arr_relError_mean.flatten()
 TPR_FourierWSINDy_manual = arr_TPR_mean.flatten()
 print("!")
 
-# ---Fourier weak SINDy (auto threshold)---
-# sparse regression settings
-params_regression = dict()
-params_regression["method"] = "ridge"
-params_regression["lambda_sparse"] = "auto"
-params_regression["lambda_ridge"] = 0.001
-params_regression["N_loops"] = 100
-
-# evaluate error at different noise levels
-N_freq = 30
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
-for i in range(0,len(arr_sig_NR)):
-    arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
-    arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
-    for j in range(0,N_noise):
-        X_noisy = arr_X_noisy[:,:,i,j]
-        w_ident = WSINDy_Fourier_Lorenz(t_out,X_noisy,N_freq,params_regression)
-        errorNorm_rel,TPR = errorEval(w_true,w_ident)
-        arr_relError[0,j] = errorNorm_rel
-        arr_TPR[0,j] = TPR
-    arr_relError_mean[0,i] = np.average(arr_relError)
-    arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_FourierWSINDy_auto = arr_relError_mean.flatten()
-TPR_FourierWSINDy_auto = arr_TPR_mean.flatten()
-print("!")
-
 # ---log data---
 data = dict()
 data["arr_sig_NR"] = arr_sig_NR
 data["error_SINDy_manual"] = error_SINDy_manual
 data["TPR_SINDy_manual"] = TPR_SINDy_manual
-data["error_SINDy_auto"] = error_SINDy_auto
-data["TPR_SINDy_auto"] = TPR_SINDy_auto
 data["error_bumpWSINDy_manual"] = error_bumpWSINDy_manual
 data["TPR_bumpWSINDy_manual"] = TPR_bumpWSINDy_manual
-data["error_bumpWSINDy_auto"] = error_bumpWSINDy_auto
-data["TPR_bumpWSINDy_auto"] = TPR_bumpWSINDy_auto
 data["error_FourierWSINDy_manual"] = error_FourierWSINDy_manual
 data["TPR_FourierWSINDy_manual"] = TPR_FourierWSINDy_manual
-data["error_FourierWSINDy_auto"] = error_FourierWSINDy_auto
-data["TPR_FourierWSINDy_auto"] = TPR_FourierWSINDy_auto
 
 savemat("results_noiseLevel.mat",data)

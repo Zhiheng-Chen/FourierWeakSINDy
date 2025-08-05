@@ -33,7 +33,7 @@ N_noise = 200   # number of noises to try at each noise level
 arr_X_noisy = np.zeros((X_clean.shape[0],X_clean.shape[1],len(arr_testFuncNum_bump),N_noise)) # allocte a 4-way array for storing noisy trajectory data
 
 for i in range(0,len(arr_testFuncNum_bump)):
-    sig_NR = 0.1
+    sig_NR = 0
     sig = sig_NR*np.linalg.norm(X_clean,"fro")/np.sqrt(MD)
     rng = np.random.default_rng(seed=0)
     for j in range(0,N_noise):
