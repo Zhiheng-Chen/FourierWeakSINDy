@@ -305,6 +305,51 @@ def constructLS_Fourier(t_out,x_i,array_n,Theta):
 
     return A_trapz,b_trapz
 
+def constructLS_Fourier_FFT(t_out,x_i,array_n,Theta):
+    Deltat = t_out[1]-t_out[0]
+    N = len(t_out.flatten())
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+
+    # compute Fourier coefficients for state variable
+    f_hat_x_i = np.fft.fft(x_i.flatten())   # FFT
+    f_hat_x_i = f_hat_x_i/N   # Fourier coefficients
+    a_n_x_i = 2*f_hat_x_i.real
+    b_n_x_i = -2*f_hat_x_i.imag
+
+    # compute Fourier coefficients for dictionary terms
+    a_n_Theta = np.zeros((len(t_out),Theta.shape[1]))
+    b_n_Theta = np.zeros((len(t_out),Theta.shape[1]))
+    for i in range(0,Theta.shape[1]):
+        f_hat = np.fft.fft(Theta[:,i].flatten())    # FFT
+        f_hat = f_hat/N   # Fourier coefficients
+        a_n_Theta[:,i] = 2*f_hat.real
+        b_n_Theta[:,i] = -2*f_hat.imag
+
+    # compute A and b
+    N_n = len(array_n)
+    # A = np.vstack([a_n_Theta[1:N_n+1,:],b_n_Theta[1:N_n+1,:]])
+    # b_cos = np.zeros((N_n,1))
+    # b_sin = np.zeros((N_n,1))
+    # for i in range(0,N_n):
+    #     n = i+1
+    #     b_cos[i] = x_i[-1]-x_i[0]+n*omega0*b_n_x_i[n]
+    #     b_sin[i] = -n*omega0*a_n_x_i[n]
+    # b = np.vstack([b_cos,b_sin])
+
+    A = b_n_Theta[1:N_n+1,:]
+    b = np.zeros((N_n,1))
+    for i in range(0,N_n):
+        n = i+1
+        b[i] = -n*omega0*a_n_x_i[n]
+
+    # A = a_n_Theta[1:N_n+1,:]
+    # b = np.zeros((N_n,1))
+    # for i in range(0,N_n):
+    #     n = i+1
+    #     b[i] = x_i[-1]-x_i[0]+n*omega0*b_n_x_i[n]
+
+    return A,b
+
 def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
@@ -320,6 +365,34 @@ def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression):
     A1,b1 = constructLS_Fourier(t_out,arr_x,arr_n_x,Theta)
     A2,b2 = constructLS_Fourier(t_out,arr_y,arr_n_y,Theta)
     A3,b3 = constructLS_Fourier(t_out,arr_z,arr_n_z,Theta)
+    # sparse regressions
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A1,b1,params_regression)
+        w2 = sparseRegression_autoLambda(A2,b2,params_regression)
+        w3 = sparseRegression_autoLambda(A3,b3,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A1,b1,params_regression)
+        w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
+        w3 = sparseRegression_prescribedLambda(A3,b3,params_regression)
+
+    w = np.hstack([w1,w2,w3])
+    return w
+
+def WSINDy_Fourier_FFT_Lorenz(t_out,X_out,N_freq,params_regression):
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+    arr_x = X_out[:,0]
+    arr_y = X_out[:,1]
+    arr_z = X_out[:,2]
+    # set n-values
+    arr_n_x = np.linspace(1,N_freq,N_freq)
+    arr_n_y = np.linspace(1,N_freq,N_freq)
+    arr_n_z = np.linspace(1,N_freq,N_freq)
+    # library
+    Theta = calcTheta_Lorenz(t_out,arr_x,arr_y,arr_z)
+    # A and b
+    A1,b1 = constructLS_Fourier_FFT(t_out,arr_x,arr_n_x,Theta)
+    A2,b2 = constructLS_Fourier_FFT(t_out,arr_y,arr_n_y,Theta)
+    A3,b3 = constructLS_Fourier_FFT(t_out,arr_z,arr_n_z,Theta)
     # sparse regressions
     if params_regression["lambda_sparse"] == "auto":
         w1 = sparseRegression_autoLambda(A1,b1,params_regression)
