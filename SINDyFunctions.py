@@ -41,6 +41,45 @@ def simulateLorenzSystem(X0,Deltat_sim,gridDensity,sigma,rho,beta):
     X_dot_out = np.hstack([x_dot,y_dot,z_dot])
     return [t_out,X_out,X_dot_out]
 
+# ---Rossler system simulations---
+def RosslerEqs(t,X,a,b,c):
+    x = X[0]
+    y = X[1]
+    z = X[2]
+    x_dot = -y-z
+    y_dot = x+a*y
+    z_dot = -c*z+x*z+b
+    return [x_dot,y_dot,z_dot]
+
+def simulateRosslerSystem(X0,Deltat_sim,gridDensity,a,b,c):
+    # numerical integration
+    t_span = [0,Deltat_sim]
+    t_eval = np.linspace(0,Deltat_sim,gridDensity*Deltat_sim+1)
+    soln = scipy.integrate.solve_ivp(RosslerEqs,t_span,X0,args=[a,b,c],method="RK45",t_eval=t_eval)
+    t = soln.t
+    [x,y,z] = soln.y
+    # exact derivatives from simulation
+    x_dot = []
+    y_dot = []
+    z_dot = []
+    for i in range(0,len(t)):
+        X = [x[i],y[i],z[i]]
+        [dxdt,dydt,dzdt] = RosslerEqs(t,X,a,b,c)
+        x_dot.append(dxdt)
+        y_dot.append(dydt)
+        z_dot.append(dzdt)
+    # log data
+    t_out = np.array(t).reshape(len(t),1)
+    x = np.array(x).reshape(len(t),1)
+    y = np.array(y).reshape(len(t),1)
+    z = np.array(z).reshape(len(t),1)
+    X_out = np.hstack([x,y,z])
+    x_dot = np.array(x_dot).reshape(len(t),1)
+    y_dot = np.array(y_dot).reshape(len(t),1)
+    z_dot = np.array(z_dot).reshape(len(t),1)
+    X_dot_out = np.hstack([x_dot,y_dot,z_dot])
+    return [t_out,X_out,X_dot_out]
+
 # ---library---
 def calcTheta_Lorenz(arr_t,arr_x,arr_y,arr_z):
     Theta = np.zeros([len(arr_t),10])
@@ -258,36 +297,28 @@ def constructLS_Fourier(t_out,x_i,array_n,Theta):
     Deltat = t_out[1]-t_out[0]
     N_n = len(array_n)
     # find V and V_dot for Riemann sums
-    V_L = np.zeros([2*N_n,len(t_out)-1])
-    V_R = np.zeros([2*N_n,len(t_out)-1])
-    V_dot_L = np.zeros([2*N_n,len(t_out)-1])
-    V_dot_R = np.zeros([2*N_n,len(t_out)-1])
+    V_L = np.zeros([N_n,len(t_out)-1])
+    V_R = np.zeros([N_n,len(t_out)-1])
+    V_dot_L = np.zeros([N_n,len(t_out)-1])
+    V_dot_R = np.zeros([N_n,len(t_out)-1])
     for n_n in range(0,N_n):
         n = array_n[n_n]
         # V_L for left Riemann sum
         Phi_L_n_cos,Phi_L_n_sin = func_phi_Fourier(t_out[0:-1],n,t_out[0],t_out[-1])
-        Phi_L_n_cos = Phi_L_n_cos.reshape(1,len(Phi_L_n_cos))
         Phi_L_n_sin = Phi_L_n_sin.reshape(1,len(Phi_L_n_sin))
-        V_L[2*n_n,:] = Deltat*Phi_L_n_cos
-        V_L[2*n_n+1,:] = Deltat*Phi_L_n_sin
+        V_L[n_n,:] = Deltat*Phi_L_n_sin
         # V_R for right Riemann sum
         Phi_R_n_cos,Phi_R_n_sin = func_phi_Fourier(t_out[1:],n,t_out[0],t_out[-1])
-        Phi_R_n_cos = Phi_R_n_cos.reshape(1,len(Phi_R_n_cos))
         Phi_R_n_sin = Phi_R_n_sin.reshape(1,len(Phi_R_n_sin))
-        V_R[2*n_n,:] = Deltat*Phi_R_n_cos
-        V_R[2*n_n+1,:] = Deltat*Phi_R_n_sin
+        V_R[n_n,:] = Deltat*Phi_R_n_sin
         # V_dot_L for left Riemann sum
         Phi_dot_L_n_cos,Phi_dot_L_n_sin = func_phi_dot_Fourier(t_out[0:-1],n,t_out[0],t_out[-1])
-        Phi_dot_L_n_cos = Phi_dot_L_n_cos.reshape(1,len(Phi_dot_L_n_cos))
         Phi_dot_L_n_sin = Phi_dot_L_n_sin.reshape(1,len(Phi_dot_L_n_sin))
-        V_dot_L[2*n_n,:] = Deltat*Phi_dot_L_n_cos
-        V_dot_L[2*n_n+1,:] = Deltat*Phi_dot_L_n_sin
+        V_dot_L[n_n,:] = Deltat*Phi_dot_L_n_sin
         # V_dot_R for right Riemann sum
         Phi_dot_R_n_cos,Phi_dot_R_n_sin = func_phi_dot_Fourier(t_out[1:],n,t_out[0],t_out[-1])
-        Phi_dot_R_n_cos = Phi_dot_R_n_cos.reshape(1,len(Phi_dot_R_n_cos))
         Phi_dot_R_n_sin = Phi_dot_R_n_sin.reshape(1,len(Phi_dot_R_n_sin))
-        V_dot_R[2*n_n,:] = Deltat*Phi_dot_R_n_cos
-        V_dot_R[2*n_n+1,:] = Deltat*Phi_dot_R_n_sin    
+        V_dot_R[n_n,:] = Deltat*Phi_dot_R_n_sin    
     # compute A and b for trapezoid integral
     ## A
     A_L = V_L@Theta[0:-1,:]
@@ -297,11 +328,6 @@ def constructLS_Fourier(t_out,x_i,array_n,Theta):
     b_L = -V_dot_L@x_i[0:-1]
     b_R = -V_dot_R@x_i[1:]
     b_trapz = (b_L+b_R)/2
-    for n_n in range(0,N_n):
-        # add the offset term for cosine test functions
-        n = array_n[n_n]
-        Phi_n_cos,Phi_n_sin = func_phi_Fourier(t_out[0:],n,t_out[0],t_out[-1])
-        b_trapz[2*n_n] += Phi_n_cos[-1]*x_i[-1]-Phi_n_cos[0]*x_i[0]
 
     return A_trapz,b_trapz
 
@@ -327,26 +353,12 @@ def constructLS_Fourier_FFT(t_out,x_i,array_n,Theta):
 
     # compute A and b
     N_n = len(array_n)
-    # A = np.vstack([a_n_Theta[1:N_n+1,:],b_n_Theta[1:N_n+1,:]])
-    # b_cos = np.zeros((N_n,1))
-    # b_sin = np.zeros((N_n,1))
-    # for i in range(0,N_n):
-    #     n = i+1
-    #     b_cos[i] = x_i[-1]-x_i[0]+n*omega0*b_n_x_i[n]
-    #     b_sin[i] = -n*omega0*a_n_x_i[n]
-    # b = np.vstack([b_cos,b_sin])
 
     A = b_n_Theta[1:N_n+1,:]
     b = np.zeros((N_n,1))
     for i in range(0,N_n):
         n = i+1
         b[i] = -n*omega0*a_n_x_i[n]
-
-    # A = a_n_Theta[1:N_n+1,:]
-    # b = np.zeros((N_n,1))
-    # for i in range(0,N_n):
-    #     n = i+1
-    #     b[i] = x_i[-1]-x_i[0]+n*omega0*b_n_x_i[n]
 
     return A,b
 

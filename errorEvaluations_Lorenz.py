@@ -2,6 +2,7 @@
 from SINDyFunctions import *
 import numpy as np
 from scipy.io import savemat
+import time
 
 # ---simulate Lorenz system and add noise---
 # system parameters
@@ -26,7 +27,7 @@ gridDensity = 1000  # number of steps in one second
 [t_out,X_clean,X_dot_out] = simulateLorenzSystem(X0,t_sim,gridDensity,sigma,rho,beta)
 
 # add noise
-MD = t_sim*gridDensity
+MD = t_sim*gridDensity*3
 arr_sig_NR = np.hstack((np.logspace(-6,-2,5),np.linspace(0.05,0.4,8)))   # array of noise ratios
 N_noise = 200   # number of noises to try at each noise level
 arr_X_noisy = np.zeros((X_clean.shape[0],X_clean.shape[1],len(arr_sig_NR),N_noise)) # allocte a 4-way array for storing noisy trajectory data
@@ -48,8 +49,12 @@ params_regression["lambda_ridge"] = 0.001
 params_regression["N_loops"] = 100
 
 # evaluate error at different noise levels
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
+arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of relative error norms for each noise level
+arr_relError_std = np.zeros((1,len(arr_sig_NR)))
+arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of TPR for each noise level
+arr_TPR_std = np.zeros((1,len(arr_sig_NR)))
+
+startTime = time.perf_counter()
 for i in range(0,len(arr_sig_NR)):
     arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
     arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
@@ -59,10 +64,18 @@ for i in range(0,len(arr_sig_NR)):
         errorNorm_rel,TPR = errorEval(w_true,w_ident)
         arr_relError[0,j] = errorNorm_rel
         arr_TPR[0,j] = TPR
+        print(f"Progress 1/4: {i*N_noise+(j+1)}/{len(arr_sig_NR)*N_noise}")
     arr_relError_mean[0,i] = np.average(arr_relError)
+    arr_relError_std[0,i] = np.std(arr_relError)
     arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_SINDy_manual = arr_relError_mean.flatten()
-TPR_SINDy_manual = arr_TPR_mean.flatten()
+    arr_TPR_std[0,i] = np.std(arr_TPR)
+errorMean_SINDy_Lorenz = arr_relError_mean.flatten()
+errorStD_SINDy_Lorenz = arr_relError_std
+TPRMean_SINDy_Lorenz = arr_TPR_mean.flatten()
+TPRStD_SINDy_Lorenz = arr_TPR_std.flatten()
+
+endTime = time.perf_counter()
+time_SINDy = endTime-startTime
 print("!")
 
 # ---bump weak SINDy (manual threshold)---
@@ -74,8 +87,12 @@ params_regression["lambda_ridge"] = 0.001
 params_regression["N_loops"] = 100
 
 # evaluate error at different noise levels
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
+arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of relative error norms for each noise level
+arr_relError_std = np.zeros((1,len(arr_sig_NR)))
+arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of TPR for each noise level
+arr_TPR_std = np.zeros((1,len(arr_sig_NR)))
+
+startTime = time.perf_counter()
 for i in range(0,len(arr_sig_NR)):
     arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
     arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
@@ -85,10 +102,18 @@ for i in range(0,len(arr_sig_NR)):
         errorNorm_rel,TPR = errorEval(w_true,w_ident)
         arr_relError[0,j] = errorNorm_rel
         arr_TPR[0,j] = TPR
+        print(f"Progress 2/4: {i*N_noise+(j+1)}/{len(arr_sig_NR)*N_noise}")
     arr_relError_mean[0,i] = np.average(arr_relError)
+    arr_relError_std[0,i] = np.std(arr_relError)
     arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_bumpWSINDy_manual = arr_relError_mean.flatten()
-TPR_bumpWSINDy_manual = arr_TPR_mean.flatten()
+    arr_TPR_std[0,i] = np.std(arr_TPR)
+errorMean_bumpWSINDy_Lorenz = arr_relError_mean.flatten()
+errorStD_bumpWSINDy_Lorenz = arr_relError_std
+TPRMean_bumpWSINDy_Lorenz = arr_TPR_mean.flatten()
+TPRStD_bumpWSINDy_Lorenz = arr_TPR_std.flatten()
+
+endTime = time.perf_counter()
+time_bumpWSINDy = endTime-startTime
 print("!")
 
 # ---Fourier weak SINDy (manual threshold)---
@@ -100,9 +125,14 @@ params_regression["lambda_ridge"] = 0.001
 params_regression["N_loops"] = 100
 
 # evaluate error at different noise levels
-N_freq = 30
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
+N_freq = 60
+
+arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of relative error norms for each noise level
+arr_relError_std = np.zeros((1,len(arr_sig_NR)))
+arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of TPR for each noise level
+arr_TPR_std = np.zeros((1,len(arr_sig_NR)))
+
+startTime = time.perf_counter()
 for i in range(0,len(arr_sig_NR)):
     arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
     arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
@@ -112,10 +142,18 @@ for i in range(0,len(arr_sig_NR)):
         errorNorm_rel,TPR = errorEval(w_true,w_ident)
         arr_relError[0,j] = errorNorm_rel
         arr_TPR[0,j] = TPR
+        print(f"Progress 3/4: {i*N_noise+(j+1)}/{len(arr_sig_NR)*N_noise}")
     arr_relError_mean[0,i] = np.average(arr_relError)
+    arr_relError_std[0,i] = np.std(arr_relError)
     arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_FourierWSINDy_manual = arr_relError_mean.flatten()
-TPR_FourierWSINDy_manual = arr_TPR_mean.flatten()
+    arr_TPR_std[0,i] = np.std(arr_TPR)
+errorMean_FourierWSINDy_Lorenz = arr_relError_mean.flatten()
+errorStD_FourierWSINDy_Lorenz = arr_relError_std
+TPRMean_FourierWSINDy_Lorenz = arr_TPR_mean.flatten()
+TPRStD_FourierWSINDy_Lorenz = arr_TPR_std.flatten()
+
+endTime = time.perf_counter()
+time_FourierWSINDy = endTime-startTime
 print("!")
 
 # ---Fourier weak SINDy (FFT accelerated)---
@@ -128,8 +166,13 @@ params_regression["N_loops"] = 100
 
 # evaluate error at different noise levels
 N_freq = 60
-arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean relative error norms for each noise level
-arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean TPR for each noise level
+
+arr_relError_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of relative error norms for each noise level
+arr_relError_std = np.zeros((1,len(arr_sig_NR)))
+arr_TPR_mean = np.zeros((1,len(arr_sig_NR))) # allocate array of mean and standard dev. of TPR for each noise level
+arr_TPR_std = np.zeros((1,len(arr_sig_NR)))
+
+startTime = time.perf_counter()
 for i in range(0,len(arr_sig_NR)):
     arr_relError = np.zeros((1,N_noise))   # array of relative error norms for N noises with current noise level
     arr_TPR = np.zeros((1,N_noise)) # array of TPRs for N noises with current noise level
@@ -139,22 +182,42 @@ for i in range(0,len(arr_sig_NR)):
         errorNorm_rel,TPR = errorEval(w_true,w_ident)
         arr_relError[0,j] = errorNorm_rel
         arr_TPR[0,j] = TPR
+        print(f"Progress 4/4: {i*N_noise+(j+1)}/{len(arr_sig_NR)*N_noise}")
     arr_relError_mean[0,i] = np.average(arr_relError)
+    arr_relError_std[0,i] = np.std(arr_relError)
     arr_TPR_mean[0,i] = np.average(arr_TPR)
-error_FourierWSINDy_FFT = arr_relError_mean.flatten()
-TPR_FourierWSINDy_FFT = arr_TPR_mean.flatten()
+    arr_TPR_std[0,i] = np.std(arr_TPR)
+errorMean_FourierWSINDyFFT_Lorenz = arr_relError_mean.flatten()
+errorStD_FourierWSINDyFFT_Lorenz = arr_relError_std
+TPRMean_FourierWSINDyFFT_Lorenz = arr_TPR_mean.flatten()
+TPRStD_FourierWSINDyFFT_Lorenz = arr_TPR_std.flatten()
+
+endTime = time.perf_counter()
+time_FourierWSINDyFFT = endTime-startTime
 print("!")
 
 # ---log data---
 data = dict()
 data["arr_sig_NR"] = arr_sig_NR
-data["error_SINDy_manual"] = error_SINDy_manual
-data["TPR_SINDy_manual"] = TPR_SINDy_manual
-data["error_bumpWSINDy_manual"] = error_bumpWSINDy_manual
-data["TPR_bumpWSINDy_manual"] = TPR_bumpWSINDy_manual
-data["error_FourierWSINDy_manual"] = error_FourierWSINDy_manual
-data["TPR_FourierWSINDy_manual"] = TPR_FourierWSINDy_manual
-data["error_FourierWSINDy_FFT"] = error_FourierWSINDy_FFT
-data["TPR_FourierWSINDy_FFT"] = TPR_FourierWSINDy_FFT
+data["errorMean_SINDy_Lorenz"] = errorMean_SINDy_Lorenz
+data["errorStD_SINDy_Lorenz"] = errorStD_SINDy_Lorenz
+data["TPRMean_SINDy_Lorenz"] = TPRMean_SINDy_Lorenz
+data["TPRStD_SINDy_Lorenz"] = TPRStD_SINDy_Lorenz
+data["errorMean_bumpWSINDy_Lorenz"] = errorMean_bumpWSINDy_Lorenz
+data["errorStD_bumpWSINDy_Lorenz"] = errorStD_bumpWSINDy_Lorenz
+data["TPRMean_bumpWSINDy_Lorenz"] = TPRMean_bumpWSINDy_Lorenz
+data["TPRStD_bumpWSINDy_Lorenz"] = TPRStD_bumpWSINDy_Lorenz
+data["errorMean_FourierWSINDy_Lorenz"] = errorMean_FourierWSINDy_Lorenz
+data["errorStD_FourierWSINDy_Lorenz"] = errorStD_FourierWSINDy_Lorenz
+data["TPRMean_FourierWSINDy_Lorenz"] = TPRMean_FourierWSINDy_Lorenz
+data["TPRStD_FourierWSINDy_Lorenz"] = TPRStD_FourierWSINDy_Lorenz
+data["errorMean_FourierWSINDyFFT_Lorenz"] = errorMean_FourierWSINDyFFT_Lorenz
+data["errorStD_FourierWSINDyFFT_Lorenz"] = errorStD_FourierWSINDyFFT_Lorenz
+data["TPRMean_FourierWSINDyFFT_Lorenz"] = TPRMean_FourierWSINDyFFT_Lorenz
+data["TPRStD_FourierWSINDyFFT_Lorenz"] = TPRStD_FourierWSINDyFFT_Lorenz
+data["time_SINDy"] = time_SINDy
+data["time_bumpWSINDy"] = time_bumpWSINDy
+data["time_FourierWSINDy"] = time_FourierWSINDy
+data["time_FourierWSINDyFFT"] = time_FourierWSINDyFFT
 
-savemat("results_noiseLevel.mat",data)
+savemat("results_noiseLevel_Lorenz.mat",data)
