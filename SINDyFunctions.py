@@ -739,8 +739,8 @@ def batchErrorEval(w_true, arr_w):
     n_noiseLevels = arr_w.shape[2]
     N_noise = arr_w.shape[3]
 
-    error_all = np.zeros((n_noiseLevels, N_noise))
-    TPR_all = np.zeros((n_noiseLevels, N_noise))
+    error_all = np.zeros((n_noiseLevels,N_noise))
+    TPR_all = np.zeros((n_noiseLevels,N_noise))
 
     # loop over noise levels and trials
     for i in range(n_noiseLevels):
