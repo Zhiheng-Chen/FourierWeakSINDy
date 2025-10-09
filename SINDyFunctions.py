@@ -114,6 +114,62 @@ def simulateVDP(X0,Deltat_sim,gridDensity,mu):
     X_dot_out = np.hstack([x_dot,y_dot])
     return [t_out,X_out,X_dot_out]
 
+# ---hyperchaotic Rossler system simulations---
+def hyperRosslerEqs(t,X,a,b,c,d):
+    x = X[0]
+    y = X[1]
+    z = X[2]
+    w = X[3]
+    x_dot = -y-z
+    y_dot = x+0.25*y+w
+    z_dot = x*z+3
+    w_dot = -0.5*z+0.05*w
+    return [x_dot,y_dot,z_dot,w_dot]
+
+def simulateHyperRossler(X0,Deltat_sim,gridDensity,a,b,c,d):
+    # numerical integration
+    t_span = [0,Deltat_sim]
+    t_eval = np.linspace(0,Deltat_sim,gridDensity*Deltat_sim+1)
+    soln = scipy.integrate.solve_ivp(hyperRosslerEqs,t_span,X0,args=[a,b,c,d],method="Radau",t_eval=t_eval)
+    t = soln.t
+    [x,y,z,w] = soln.y
+    # log data
+    t_out = np.array(t).reshape(len(t),1)
+    x = np.array(x).reshape(len(t),1)
+    y = np.array(y).reshape(len(t),1)
+    z = np.array(z).reshape(len(t),1)
+    w = np.array(w).reshape(len(t),1)
+    X_out = np.hstack([x,y,z,w])
+    return [t_out,X_out]
+
+# ---hyperchaotic Jha system simulations---
+def hyperJhaEqs(t,X,a,b,c,d):
+    x = X[0]
+    y = X[1]
+    z = X[2]
+    w = X[3]
+    x_dot = -a*x+a*y+w
+    y_dot = b*x-y-x*z
+    z_dot = -c*z+x*y
+    w_dot = d*w-x*z
+    return [x_dot,y_dot,z_dot,w_dot]
+
+def simulateHyperJha(X0,Deltat_sim,gridDensity,a,b,c,d):
+    # numerical integration
+    t_span = [0,Deltat_sim]
+    t_eval = np.linspace(0,Deltat_sim,gridDensity*Deltat_sim+1)
+    soln = scipy.integrate.solve_ivp(hyperJhaEqs,t_span,X0,args=[a,b,c,d],method="RK45",t_eval=t_eval)
+    t = soln.t
+    [x,y,z,w] = soln.y
+    # log data
+    t_out = np.array(t).reshape(len(t),1)
+    x = np.array(x).reshape(len(t),1)
+    y = np.array(y).reshape(len(t),1)
+    z = np.array(z).reshape(len(t),1)
+    w = np.array(w).reshape(len(t),1)
+    X_out = np.hstack([x,y,z,w])
+    return [t_out,X_out]
+
 # ---hyperchaotic Lorenz system simulations---
 def hyperLorenzEqs(t,X,a,b,c,d):
     x = X[0]
@@ -293,6 +349,53 @@ def trueCoeffMatrix_LV(exps,beta):
     # yD = -6y+beta*xy
     w_true[indexOf(exps,(0,1)),1] = -6      # x
     w_true[indexOf(exps,(1,1)),1] = beta       # y
+
+    return w_true
+
+def trueCoeffMatrix_hyperRossler(exps,a,b,c,d):
+    n = len(exps)
+    w_true = np.zeros((n,4))
+
+    # xD = -y-z
+    w_true[indexOf(exps,(0,1,0,0)),0] = -1  # y
+    w_true[indexOf(exps,(0,0,1,0)),0] = -1  # z
+
+    # yD = x+0.25y+w
+    w_true[indexOf(exps,(1,0,0,0)),1] = 1      # x
+    w_true[indexOf(exps,(0,1,0,0)),1] = 0.25       # y
+    w_true[indexOf(exps,(0,0,0,1)),1] = 1       # w
+
+    # zD = xz+3
+    w_true[indexOf(exps,(1,0,1,0)),2] = 1  # xz
+    w_true[indexOf(exps,(0,0,0,0)),2] = 3  # 1
+
+    # wD = -0.5z+0.05w
+    w_true[indexOf(exps,(0,0,1,0)),3] = -0.5   # z
+    w_true[indexOf(exps,(0,0,0,1)),3] = 0.05   # w
+
+    return w_true
+
+def trueCoeffMatrix_hyperJha(exps,a,b,c,d):
+    n = len(exps)
+    w_true = np.zeros((n,4))
+
+    # xD = a(y-x)+w
+    w_true[indexOf(exps,(1,0,0,0)),0] = -a   # x
+    w_true[indexOf(exps,(0,1,0,0)),0] = a  # y
+    w_true[indexOf(exps,(0,0,0,1)),0] = 1  # w
+
+    # yD = bx-y-xz
+    w_true[indexOf(exps,(1,0,0,0)),1] = b      # x
+    w_true[indexOf(exps,(0,1,0,0)),1] = -1       # y
+    w_true[indexOf(exps,(1,0,1,0)),1] = -1       # xz
+
+    # zD = -cz+xy
+    w_true[indexOf(exps,(0,0,1,0)),2] = -c  #z
+    w_true[indexOf(exps,(1,1,0,0)),2] = 1  #xy
+
+    # wD = dw-xz
+    w_true[indexOf(exps,(0,0,0,1)),3] = d   #w
+    w_true[indexOf(exps,(1,0,1,0)),3] = -1   #xz
 
     return w_true
 
