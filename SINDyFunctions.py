@@ -1,4 +1,5 @@
 import numpy as np
+import itertools
 import scipy
 from sklearn.linear_model import Lasso
 
@@ -113,6 +114,34 @@ def simulateVDP(X0,Deltat_sim,gridDensity,mu):
     X_dot_out = np.hstack([x_dot,y_dot])
     return [t_out,X_out,X_dot_out]
 
+# ---hyperchaotic Lorenz system simulations---
+def hyperLorenzEqs(t,X,a,b,c,d):
+    x = X[0]
+    y = X[1]
+    z = X[2]
+    w = X[3]
+    x_dot = -a*x+a*y+w
+    y_dot = c*x-y-x*z
+    z_dot = -b*z+x*y
+    w_dot = d*w-x*z
+    return [x_dot,y_dot,z_dot,w_dot]
+
+def simulateHyperLorenz(X0,Deltat_sim,gridDensity,a,b,c,d):
+    # numerical integration
+    t_span = [0,Deltat_sim]
+    t_eval = np.linspace(0,Deltat_sim,gridDensity*Deltat_sim+1)
+    soln = scipy.integrate.solve_ivp(hyperLorenzEqs,t_span,X0,args=[a,b,c,d],method="RK45",t_eval=t_eval)
+    t = soln.t
+    [x,y,z,w] = soln.y
+    # log data
+    t_out = np.array(t).reshape(len(t),1)
+    x = np.array(x).reshape(len(t),1)
+    y = np.array(y).reshape(len(t),1)
+    z = np.array(z).reshape(len(t),1)
+    w = np.array(w).reshape(len(t),1)
+    X_out = np.hstack([x,y,z,w])
+    return [t_out,X_out]
+
 # ---Lotka-Volterra system simulations---
 def LVEqs(t,X,beta):
     x = X[0]
@@ -147,53 +176,149 @@ def simulateLV(X0,Deltat_sim,gridDensity,beta):
     return [t_out,X_out,X_dot_out]
 
 # ---library---
-def calcTheta_Lorenz(arr_t,arr_x,arr_y,arr_z):
-    Theta = np.zeros([len(arr_t),10])
-    for i in range(0,len(arr_t)):
-        x = arr_x[i]
-        y = arr_y[i]
-        z = arr_z[i]
-        Theta[i,0] = 1
-        Theta[i,1] = x
-        Theta[i,2] = y
-        Theta[i,3] = z
-        Theta[i,4] = x**2
-        Theta[i,5] = y**2
-        Theta[i,6] = z**2
-        Theta[i,7] = x*y
-        Theta[i,8] = y*z
-        Theta[i,9] = x*z
-    return Theta
+def calcTheta_poly_4D(arr_t,arr_x,arr_y,arr_z,arr_w,order=5):
+    n = len(arr_t)
 
-def calcTheta_VDP(arr_t,arr_x,arr_y):
-    Theta = np.zeros([len(arr_t),10])
-    for i in range(0,len(arr_t)):
-        x = arr_x[i]
-        y = arr_y[i]
-        Theta[i,0] = 1
-        Theta[i,1] = x
-        Theta[i,2] = y
-        Theta[i,3] = x**2
-        Theta[i,4] = y**2
-        Theta[i,5] = x*y
-        Theta[i,6] = x**3
-        Theta[i,7] = y**3
-        Theta[i,8] = x**2*y
-        Theta[i,9] = x*y**2
-    return Theta
+    # generate all (i,j,k,l) such that i+j+k+l <= order
+    exponents = []
+    for total in range(order+1):
+        for i,j,k,l in itertools.product(range(total+1),repeat=4):
+            if i+j+k+l == total:
+                exponents.append((i,j,k,l))   # exponents includes constants (0,0,0,0)，first order terms (1,0,0,0) and all other combinations
+    
+    # compute library
+    Theta = np.zeros((n,len(exponents)))
+    for ind,(i,j,k,l) in enumerate(exponents):
+        Theta[:,ind] = (arr_x**i)*(arr_y**j)*(arr_z**k)*(arr_w**l)
+    
+    return Theta,exponents
 
-def calcTheta_LV(arr_t,arr_x,arr_y):
-    Theta = np.zeros([len(arr_t),6])
-    for i in range(0,len(arr_t)):
-        x = arr_x[i]
-        y = arr_y[i]
-        Theta[i,0] = 1
-        Theta[i,1] = x
-        Theta[i,2] = y
-        Theta[i,3] = x**2
-        Theta[i,4] = y**2
-        Theta[i,5] = x*y
-    return Theta
+def calcTheta_poly_3D(arr_t,arr_x,arr_y,arr_z,order=5):
+    n = len(arr_t)
+
+    # generate all (i,j,k) such that i+j+k <= order
+    exponents = []
+    for total in range(order+1):
+        for i,j,k in itertools.product(range(total+1),repeat=3):
+            if i+j+k == total:
+                exponents.append((i,j,k))   # exponents includes constants (0,0,0)，first order terms (1,0,0) and all other combinations
+    
+    # compute library
+    Theta = np.zeros((n,len(exponents)))
+    for ind,(i,j,k) in enumerate(exponents):
+        Theta[:,ind] = (arr_x**i)*(arr_y**j)*(arr_z**k)
+    
+    return Theta,exponents
+
+def calcTheta_poly_2D(arr_t,arr_x,arr_y,order=5):
+    n = len(arr_t)
+
+    # generate all (i,j) such that i+j <= order
+    exponents = []
+    for total in range(order+1):
+        for i,j in itertools.product(range(total+1),repeat=2):
+            if i+j == total:
+                exponents.append((i,j))   # exponents includes constants (0,0)，first order terms (1,0) and all other combinations
+    
+    # compute library
+    Theta = np.zeros((n,len(exponents)))
+    for ind,(i,j) in enumerate(exponents):
+        Theta[:,ind] = (arr_x**i)*(arr_y**j)
+    
+    return Theta,exponents
+
+def indexOf(exps,target):
+    return exps.index(target)
+
+def trueCoeffMatrix_Lorenz(exps,sigma,rho,beta):
+    n = len(exps)
+    w_true = np.zeros((n,3))
+
+    # xD = -sigma*x+sigma*y
+    w_true[indexOf(exps,(1,0,0)),0] = -sigma   # x
+    w_true[indexOf(exps,(0,1,0)),0] = sigma    # y
+
+    # yD = rho*x-y-x*z
+    w_true[indexOf(exps,(1,0,0)),1] = rho      # x
+    w_true[indexOf(exps,(0,1,0)),1] = -1       # y
+    w_true[indexOf(exps,(1,0,1)),1] = -1       # x*z
+
+    # zD = -beta*z+x*y
+    w_true[indexOf(exps,(0,0,1)),2] = -beta    # z
+    w_true[indexOf(exps,(1,1,0)),2] = 1        # x*y
+
+    return w_true
+
+def trueCoeffMatrix_Rossler(exps,a,b,c):
+    n = len(exps)
+    w_true = np.zeros((n,3))
+
+    # xD = -y-z
+    w_true[indexOf(exps,(0,1,0)),0] = -1   # x
+    w_true[indexOf(exps,(0,0,1)),0] = -1    # z
+
+    # yD = x+ay
+    w_true[indexOf(exps,(1,0,0)),1] = 1      # x
+    w_true[indexOf(exps,(0,1,0)),1] = a       # y
+
+    # zD = b-cz+xz
+    w_true[indexOf(exps,(0,0,0)),2] = b    # 1
+    w_true[indexOf(exps,(0,0,1)),2] = -c    # z
+    w_true[indexOf(exps,(1,0,1)),2] = 1        # xz
+
+    return w_true
+
+def trueCoeffMatrix_VDP(exps,mu):
+    n = len(exps)
+    w_true = np.zeros((n,2))
+
+    # xD = y
+    w_true[indexOf(exps,(0,1)),0] = 1   # y
+
+    # yD = -x+mu*y-mu*x^2*y
+    w_true[indexOf(exps,(1,0)),1] = -1      # x
+    w_true[indexOf(exps,(0,1)),1] = mu       # y
+    w_true[indexOf(exps,(2,1)),1] = -mu # x^2*y
+
+    return w_true
+
+def trueCoeffMatrix_LV(exps,beta):
+    n = len(exps)
+    w_true = np.zeros((n,2))
+
+    # xD = 3x-beta*xy
+    w_true[indexOf(exps,(1,0)),0] = 3   # x
+    w_true[indexOf(exps,(1,1)),0] = -beta   # y
+
+    # yD = -6y+beta*xy
+    w_true[indexOf(exps,(0,1)),1] = -6      # x
+    w_true[indexOf(exps,(1,1)),1] = beta       # y
+
+    return w_true
+
+def trueCoeffMatrix_hyperLorenz(exps,a,b,c,d):
+    n = len(exps)
+    w_true = np.zeros((n,4))
+
+    # xD = a(y-x)+w
+    w_true[indexOf(exps,(1,0,0,0)),0] = -a   # x
+    w_true[indexOf(exps,(0,1,0,0)),0] = a  # y
+    w_true[indexOf(exps,(0,0,0,1)),0] = 1  # w
+
+    # yD = cx-y-xz
+    w_true[indexOf(exps,(1,0,0,0)),1] = c      # x
+    w_true[indexOf(exps,(0,1,0,0)),1] = -1       # y
+    w_true[indexOf(exps,(1,0,1,0)),1] = -1       # xz
+
+    # zD = -bz+xy
+    w_true[indexOf(exps,(0,0,1,0)),2] = -b  #z
+    w_true[indexOf(exps,(1,1,0,0)),2] = 1  #xy
+
+    # wD = dw-xz
+    w_true[indexOf(exps,(0,0,0,1)),3] = d   #w
+    w_true[indexOf(exps,(1,0,1,0)),3] = -1   #xz
+
+    return w_true
 
 # ---sparse regression---
 def sparseRegression_prescribedLambda(A,b,params_regression):
@@ -256,6 +381,37 @@ def sparseRegression_autoLambda(A,b,params_regression):
 
 # ---regular SINDy---
 # central finite difference
+def calcDerivatives_4D(t_out,X_out):
+    Deltat = np.diff(t_out.reshape(1,len(t_out)))
+    Deltax = np.diff(X_out[:,0].reshape(1,len(t_out)))
+    Deltay = np.diff(X_out[:,1].reshape(1,len(t_out)))
+    Deltaz = np.diff(X_out[:,2].reshape(1,len(t_out)))
+    Deltaw = np.diff(X_out[:,3].reshape(1,len(t_out)))
+    t_out = t_out[1:-1]
+    X_out = X_out[1:-1,:]
+    # forward step size
+    a = Deltat[0,1:]
+    Deltax_fwd = Deltax[0,1:]
+    Deltay_fwd = Deltay[0,1:]
+    Deltaz_fwd = Deltaz[0,1:]
+    Deltaw_fwd = Deltaw[0,1:]
+    # backward step size
+    b = Deltat[0,0:-1]
+    Deltax_bwd = Deltax[0,0:-1]
+    Deltay_bwd = Deltay[0,0:-1]
+    Deltaz_bwd = Deltaz[0,0:-1]
+    Deltaw_bwd = Deltaw[0,0:-1]
+    # derivatives
+    x_dot = (b**2*Deltax_fwd+a**2*Deltax_bwd)/(a**2*b+a*b**2)
+    y_dot = (b**2*Deltay_fwd+a**2*Deltay_bwd)/(a**2*b+a*b**2)
+    z_dot = (b**2*Deltaz_fwd+a**2*Deltaz_bwd)/(a**2*b+a*b**2)
+    w_dot = (b**2*Deltaw_fwd+a**2*Deltaw_bwd)/(a**2*b+a*b**2)
+    x_dot = x_dot.reshape(len(x_dot),1)
+    y_dot = y_dot.reshape(len(y_dot),1)
+    z_dot = z_dot.reshape(len(z_dot),1)
+    w_dot = w_dot.reshape(len(w_dot),1)
+    return x_dot,y_dot,z_dot,w_dot
+
 def calcDerivatives(t_out,X_out):
     Deltat = np.diff(t_out.reshape(1,len(t_out)))
     Deltax = np.diff(X_out[:,0].reshape(1,len(t_out)))
@@ -304,9 +460,9 @@ def calcDerivatives_2D(t_out,X_out):
     return x_dot,y_dot
 
 # SINDy
-def SINDy_Lorenz(t_out,X_out,params_regression):
+def SINDy_Lorenz(t_out,X_out,params_regression,polyOrder=2):
     x_dot,y_dot,z_dot = calcDerivatives(t_out,X_out)
-    Theta = calcTheta_Lorenz(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1],X_out[1:-1,2])
+    Theta,_ = calcTheta_poly_3D(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1],X_out[1:-1,2],order=polyOrder)
     if params_regression["lambda_sparse"] == "auto":
         w1 = sparseRegression_autoLambda(Theta,x_dot,params_regression)
         w2 = sparseRegression_autoLambda(Theta,y_dot,params_regression)
@@ -319,9 +475,9 @@ def SINDy_Lorenz(t_out,X_out,params_regression):
     w = np.hstack([w1,w2,w3])
     return w
 
-def SINDy_VDP(t_out,X_out,params_regression):
+def SINDy_VDP(t_out,X_out,params_regression,polyOrder=2):
     x_dot,y_dot = calcDerivatives_2D(t_out,X_out)
-    Theta = calcTheta_VDP(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1])
+    Theta,_ = calcTheta_poly_2D(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1],order=polyOrder)
     if params_regression["lambda_sparse"] == "auto":
         w1 = sparseRegression_autoLambda(Theta,x_dot,params_regression)
         w2 = sparseRegression_autoLambda(Theta,y_dot,params_regression)
@@ -332,9 +488,9 @@ def SINDy_VDP(t_out,X_out,params_regression):
     w = np.hstack([w1,w2])
     return w
 
-def SINDy_LV(t_out,X_out,params_regression):
+def SINDy_LV(t_out,X_out,params_regression,polyOrder=2):
     x_dot,y_dot = calcDerivatives_2D(t_out,X_out)
-    Theta = calcTheta_LV(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1])
+    Theta,_ = calcTheta_poly_2D(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1],order=polyOrder)
     if params_regression["lambda_sparse"] == "auto":
         w1 = sparseRegression_autoLambda(Theta,x_dot,params_regression)
         w2 = sparseRegression_autoLambda(Theta,y_dot,params_regression)
@@ -343,6 +499,23 @@ def SINDy_LV(t_out,X_out,params_regression):
         w2 = sparseRegression_prescribedLambda(Theta,y_dot,params_regression)
 
     w = np.hstack([w1,w2])
+    return w
+
+def SINDy_4D(t_out,X_out,params_regression,polyOrder=2):
+    x_dot,y_dot,z_dot,w_dot = calcDerivatives_4D(t_out,X_out)
+    Theta,_ = calcTheta_poly_4D(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1],X_out[1:-1,2],X_out[1:-1,3],order=polyOrder)
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(Theta,x_dot,params_regression)
+        w2 = sparseRegression_autoLambda(Theta,y_dot,params_regression)
+        w3 = sparseRegression_autoLambda(Theta,z_dot,params_regression)
+        w4 = sparseRegression_autoLambda(Theta,w_dot,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(Theta,x_dot,params_regression)
+        w2 = sparseRegression_prescribedLambda(Theta,y_dot,params_regression)
+        w3 = sparseRegression_prescribedLambda(Theta,z_dot,params_regression)
+        w4 = sparseRegression_prescribedLambda(Theta,w_dot,params_regression)
+
+    w = np.hstack([w1,w2,w3,w4])
     return w
 
 # ---weak SINDy---
@@ -357,9 +530,9 @@ def func_phi_dot_bump(t,p,q,a,b):
     return phi_dot
 
 # bump weak SINDy
-def WSINDy_bump_Lorenz(t_out,X_out,N_p,N_q,params_regression):
+def WSINDy_bump_Lorenz(t_out,X_out,N_p,N_q,params_regression,polyOrder=2):
     # library
-    Theta = calcTheta_Lorenz(t_out,X_out[:,0],X_out[:,1],X_out[:,2])
+    Theta,_ = calcTheta_poly_3D(t_out,X_out[:,0],X_out[:,1],X_out[:,2],order=polyOrder)
     # test function parameters
     array_p = np.linspace(1,100,N_p)
     array_q = np.linspace(1,100,N_q)
@@ -420,9 +593,9 @@ def WSINDy_bump_Lorenz(t_out,X_out,N_p,N_q,params_regression):
     w = np.hstack([w1,w2,w3])
     return w
 
-def WSINDy_bump_VDP(t_out,X_out,N_p,N_q,params_regression):
+def WSINDy_bump_VDP(t_out,X_out,N_p,N_q,params_regression,polyOrder=2):
     # library
-    Theta = calcTheta_VDP(t_out,X_out[:,0],X_out[:,1])
+    Theta,_ = calcTheta_poly_2D(t_out,X_out[:,0],X_out[:,1],order=polyOrder)
     # test function parameters
     array_p = np.linspace(1,100,N_p)
     array_q = np.linspace(1,100,N_q)
@@ -477,9 +650,9 @@ def WSINDy_bump_VDP(t_out,X_out,N_p,N_q,params_regression):
     w = np.hstack([w1,w2])
     return w
 
-def WSINDy_bump_LV(t_out,X_out,N_p,N_q,params_regression):
+def WSINDy_bump_LV(t_out,X_out,N_p,N_q,params_regression,polyOrder=2):
     # library
-    Theta = calcTheta_LV(t_out,X_out[:,0],X_out[:,1])
+    Theta,_ = calcTheta_poly_2D(t_out,X_out[:,0],X_out[:,1],order=polyOrder)
     # test function parameters
     array_p = np.linspace(1,100,N_p)
     array_q = np.linspace(1,100,N_q)
@@ -532,6 +705,75 @@ def WSINDy_bump_LV(t_out,X_out,N_p,N_q,params_regression):
         w2 = sparseRegression_prescribedLambda(A_trapz,b2_trapz,params_regression)   
 
     w = np.hstack([w1,w2])
+    return w
+
+def WSINDy_bump_4D(t_out,X_out,N_p,N_q,params_regression,polyOrder=2):
+    # library
+    Theta,_ = calcTheta_poly_4D(t_out,X_out[:,0],X_out[:,1],X_out[:,2],X_out[:,3],order=polyOrder)
+    # test function parameters
+    array_p = np.linspace(1,100,N_p)
+    array_q = np.linspace(1,100,N_q)
+    # find V and V_dot for Riemann sums
+    Deltat = np.diff(t_out.reshape(1,len(t_out)))
+    V_L = np.zeros([N_p*N_q,len(t_out)-1])
+    V_R = np.zeros([N_p*N_q,len(t_out)-1])
+    V_dot_L = np.zeros([N_p*N_q,len(t_out)-1])
+    V_dot_R = np.zeros([N_p*N_q,len(t_out)-1])
+    for n_p in range(0,N_p):
+        for n_q in range(0,N_q):
+            p = array_p[n_p]
+            q = array_q[n_q]
+            m = n_p*N_q+n_q   #(m+1)-th test function with index m
+            # V_L for left Riemann sum
+            Phi_L_m = func_phi_bump(t_out[0:-1],p,q,t_out[0],t_out[-1])
+            Phi_L_m = Phi_L_m.reshape(1,len(Phi_L_m))
+            V_L[m,:] = Deltat*Phi_L_m
+            # V_R for right Riemann sum
+            Phi_R_m = func_phi_bump(t_out[1:],p,q,t_out[0],t_out[-1])
+            Phi_R_m = Phi_R_m.reshape(1,len(Phi_R_m))
+            V_R[m,:] = Deltat*Phi_R_m
+            # V_dot_L for left Riemann sum
+            Phi_dot_L_m = func_phi_dot_bump(t_out[0:-1],p,q,t_out[0],t_out[-1])
+            Phi_dot_L_m = Phi_dot_L_m.reshape(1,len(Phi_dot_L_m))
+            V_dot_L[m,:] = Deltat*Phi_dot_L_m
+            # V_dot_R for right Riemann sum
+            Phi_dot_R_m = func_phi_dot_bump(t_out[1:],p,q,t_out[0],t_out[-1])
+            Phi_dot_R_m = Phi_dot_R_m.reshape(1,len(Phi_dot_R_m))
+            V_dot_R[m,:] = Deltat*Phi_dot_R_m
+    # compute A and b from trapezoid integral
+    ## A
+    A_L = V_L@Theta[0:-1,:]
+    A_R = V_R@Theta[1:,:]
+    A_trapz = (A_L+A_R)/2
+    ## b1
+    b1_L = -V_dot_L@X_out[0:-1,0]
+    b1_R = -V_dot_R@X_out[1:,0]
+    b1_trapz = (b1_L+b1_R)/2
+    ## b2
+    b2_L = -V_dot_L@X_out[0:-1,1]
+    b2_R = -V_dot_R@X_out[1:,1]
+    b2_trapz = (b2_L+b2_R)/2
+    ## b3
+    b3_L = -V_dot_L@X_out[0:-1,2]
+    b3_R = -V_dot_R@X_out[1:,2]
+    b3_trapz = (b3_L+b3_R)/2
+    ## b4
+    b4_L = -V_dot_L@X_out[0:-1,3]
+    b4_R = -V_dot_R@X_out[1:,3]
+    b4_trapz = (b4_L+b4_R)/2
+    # sparse regression
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A_trapz,b1_trapz,params_regression)
+        w2 = sparseRegression_autoLambda(A_trapz,b2_trapz,params_regression)   
+        w3 = sparseRegression_autoLambda(A_trapz,b3_trapz,params_regression)
+        w4 = sparseRegression_autoLambda(A_trapz,b4_trapz,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A_trapz,b1_trapz,params_regression)
+        w2 = sparseRegression_prescribedLambda(A_trapz,b2_trapz,params_regression)   
+        w3 = sparseRegression_prescribedLambda(A_trapz,b3_trapz,params_regression)
+        w4 = sparseRegression_prescribedLambda(A_trapz,b4_trapz,params_regression)
+
+    w = np.hstack([w1,w2,w3,w4])
     return w
 
 # Fourier test functions
@@ -619,7 +861,7 @@ def constructLS_Fourier_FFT(t_out,x_i,array_n,Theta):
 
     return A,b
 
-def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression):
+def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression,polyOrder=2):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
@@ -629,7 +871,7 @@ def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression):
     arr_n_y = np.linspace(1,N_freq,N_freq)
     arr_n_z = np.linspace(1,N_freq,N_freq)
     # library
-    Theta = calcTheta_Lorenz(t_out,arr_x,arr_y,arr_z)
+    Theta,_ = calcTheta_poly_3D(t_out,arr_x,arr_y,arr_z,order=polyOrder)
     # A and b
     A1,b1 = constructLS_Fourier(t_out,arr_x,arr_n_x,Theta)
     A2,b2 = constructLS_Fourier(t_out,arr_y,arr_n_y,Theta)
@@ -647,7 +889,7 @@ def WSINDy_Fourier_Lorenz(t_out,X_out,N_freq,params_regression):
     w = np.hstack([w1,w2,w3])
     return w
 
-def WSINDy_Fourier_FFT_Lorenz(t_out,X_out,N_freq,params_regression):
+def WSINDy_Fourier_FFT_Lorenz(t_out,X_out,N_freq,params_regression,polyOrder=2):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
@@ -657,7 +899,7 @@ def WSINDy_Fourier_FFT_Lorenz(t_out,X_out,N_freq,params_regression):
     arr_n_y = np.linspace(1,N_freq,N_freq)
     arr_n_z = np.linspace(1,N_freq,N_freq)
     # library
-    Theta = calcTheta_Lorenz(t_out,arr_x,arr_y,arr_z)
+    Theta,_ = calcTheta_poly_3D(t_out,arr_x,arr_y,arr_z,order=polyOrder)
     # A and b
     A1,b1 = constructLS_Fourier_FFT(t_out,arr_x,arr_n_x,Theta)
     A2,b2 = constructLS_Fourier_FFT(t_out,arr_y,arr_n_y,Theta)
@@ -675,7 +917,7 @@ def WSINDy_Fourier_FFT_Lorenz(t_out,X_out,N_freq,params_regression):
     w = np.hstack([w1,w2,w3])
     return w
 
-def WSINDy_Fourier_FFT_VDP(t_out,X_out,N_freq,params_regression):
+def WSINDy_Fourier_FFT_VDP(t_out,X_out,N_freq,params_regression,polyOrder=2):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
@@ -683,7 +925,7 @@ def WSINDy_Fourier_FFT_VDP(t_out,X_out,N_freq,params_regression):
     arr_n_x = np.linspace(1,N_freq,N_freq)
     arr_n_y = np.linspace(1,N_freq,N_freq)
     # library
-    Theta = calcTheta_VDP(t_out,arr_x,arr_y)
+    Theta,_ = calcTheta_poly_2D(t_out,X_out[:,0],X_out[:,1],order=polyOrder)
     # A and b
     A1,b1 = constructLS_Fourier_FFT(t_out,arr_x,arr_n_x,Theta)
     A2,b2 = constructLS_Fourier_FFT(t_out,arr_y,arr_n_y,Theta)
@@ -698,7 +940,7 @@ def WSINDy_Fourier_FFT_VDP(t_out,X_out,N_freq,params_regression):
     w = np.hstack([w1,w2])
     return w
 
-def WSINDy_Fourier_FFT_LV(t_out,X_out,N_freq,params_regression):
+def WSINDy_Fourier_FFT_LV(t_out,X_out,N_freq,params_regression,polyOrder=2):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
@@ -706,7 +948,7 @@ def WSINDy_Fourier_FFT_LV(t_out,X_out,N_freq,params_regression):
     arr_n_x = np.linspace(1,N_freq,N_freq)
     arr_n_y = np.linspace(1,N_freq,N_freq)
     # library
-    Theta = calcTheta_LV(t_out,arr_x,arr_y)
+    Theta,_ = calcTheta_poly_2D(t_out[1:-1],X_out[1:-1,0],X_out[1:-1,1],order=polyOrder)
     # A and b
     A1,b1 = constructLS_Fourier_FFT(t_out,arr_x,arr_n_x,Theta)
     A2,b2 = constructLS_Fourier_FFT(t_out,arr_y,arr_n_y,Theta)
@@ -719,6 +961,39 @@ def WSINDy_Fourier_FFT_LV(t_out,X_out,N_freq,params_regression):
         w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
 
     w = np.hstack([w1,w2])
+    return w
+
+def WSINDy_Fourier_FFT_4D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+    arr_x = X_out[:,0]
+    arr_y = X_out[:,1]
+    arr_z = X_out[:,2]
+    arr_w = X_out[:,3]
+    # set n-values
+    arr_n_x = np.linspace(1,N_freq,N_freq)
+    arr_n_y = np.linspace(1,N_freq,N_freq)
+    arr_n_z = np.linspace(1,N_freq,N_freq)
+    arr_n_w = np.linspace(1,N_freq,N_freq)
+    # library
+    Theta,_ = calcTheta_poly_4D(t_out,arr_x,arr_y,arr_z,arr_w,order=polyOrder)
+    # A and b
+    A1,b1 = constructLS_Fourier_FFT(t_out,arr_x,arr_n_x,Theta)
+    A2,b2 = constructLS_Fourier_FFT(t_out,arr_y,arr_n_y,Theta)
+    A3,b3 = constructLS_Fourier_FFT(t_out,arr_z,arr_n_z,Theta)
+    A4,b4 = constructLS_Fourier_FFT(t_out,arr_w,arr_n_w,Theta)
+    # sparse regressions
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A1,b1,params_regression)
+        w2 = sparseRegression_autoLambda(A2,b2,params_regression)
+        w3 = sparseRegression_autoLambda(A3,b3,params_regression)
+        w4 = sparseRegression_autoLambda(A4,b4,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A1,b1,params_regression)
+        w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
+        w3 = sparseRegression_prescribedLambda(A3,b3,params_regression)
+        w4 = sparseRegression_prescribedLambda(A4,b4,params_regression)
+
+    w = np.hstack([w1,w2,w3,w4])
     return w
 
 # ---error evaluations---
@@ -735,7 +1010,7 @@ def errorEval(w_true,w_ident):
     TPR = N_correct/(N_correct+N_spurious+N_failed)   
     return errorNorm_rel,TPR
 
-def batchErrorEval(w_true, arr_w):
+def batchErrorEval(w_true,arr_w):
     n_noiseLevels = arr_w.shape[2]
     N_noise = arr_w.shape[3]
 
@@ -746,15 +1021,15 @@ def batchErrorEval(w_true, arr_w):
     for i in range(n_noiseLevels):
         for j in range(N_noise):
             w_ident = arr_w[:,:,i,j]
-            eNorm, TPR = errorEval(w_true, w_ident)
+            eNorm,TPR = errorEval(w_true,w_ident)
             error_all[i,j] = eNorm
             TPR_all[i,j] = TPR
 
     # compute statistics
-    error_mean = np.mean(error_all,axis=1)
+    error_mean = np.median(error_all,axis=1)
     error_q1 = np.percentile(error_all,25,axis=1)
     error_q3 = np.percentile(error_all,75,axis=1)
-    TPR_mean = np.mean(TPR_all,axis=1)
+    TPR_mean = np.median(TPR_all,axis=1)
     TPR_q1 = np.percentile(TPR_all,25,axis=1)
     TPR_q3 = np.percentile(TPR_all,75,axis=1)
 
