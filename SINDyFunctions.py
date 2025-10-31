@@ -1,7 +1,10 @@
 import numpy as np
 import itertools
 import scipy
+from scipy.signal import welch
+from mne.time_frequency import psd_array_multitaper
 from sklearn.linear_model import Lasso
+import matplotlib.pyplot as plt
 
 # ---Lorenz system simulations---
 def LorenzEqs(t,X,sigma,rho,beta):
@@ -895,6 +898,31 @@ def func_phi_dot_Fourier(t,n,t_a,t_b):
     return phi_cos_dot,phi_sin_dot
 
 # Fourier weak SINDy
+def getFreqInds_PSD_multiTaper(t,x_i,N_freq,bandwidth=15):
+    # get top frequencies from PSD
+    phi,f = psd_array_multitaper(x_i,1/(t[1]-t[0]),remove_dc=True,fmin=0,fmax=1000,bandwidth=bandwidth,normalization="full",verbose=False)
+    topFreqs_PSD = f[np.argsort(-phi)[:N_freq]]
+
+    # FFT frequencies
+    FFT_freqs = np.fft.fftfreq(len(x_i),t[1]-t[0])
+    FFT_freqs = FFT_freqs[:len(t)//2]
+
+    # match PSD frequencies to nearest FFT frequencies 
+    freqInds_FFT = np.zeros(len(topFreqs_PSD),dtype=int)
+    for ind,f_PSD in enumerate(topFreqs_PSD):
+        i_FFT = np.argmin(np.abs(FFT_freqs-f_PSD))
+        freqInds_FFT[ind] = i_FFT
+    
+    return freqInds_FFT
+
+def getFreqInds_FFT(t,x_i,N_freq):
+    # get top frequencies from FFT magnitudes
+    FFT_vals = np.fft.fft(x_i)
+    FFT_mags = np.abs(FFT_vals)[:len(t)//2]
+    freqInds_FFT = np.argsort(-FFT_mags)[:N_freq]
+
+    return freqInds_FFT
+
 def constructLS_Fourier(t_out,x_i,array_n,Theta):
     Deltat = t_out[1]-t_out[0]
     N_n = len(array_n)
@@ -960,6 +988,36 @@ def constructLS_Fourier_FFT(t_out,x_i,array_n,Theta):
     b = np.zeros((N_n,1))
     for i in range(0,N_n):
         n = i+1
+        b[i] = -n*omega0*a_n_x_i[n]
+
+    return A,b
+
+def constructLS_FFT_PSD(t_out,x_i,array_n,Theta):
+    Deltat = t_out[1]-t_out[0]
+    N = len(t_out.flatten())
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+
+    # compute Fourier coefficients for state variable
+    f_hat_x_i = np.fft.fft(x_i.flatten())   # FFT
+    f_hat_x_i = f_hat_x_i/N   # Fourier coefficients
+    a_n_x_i = 2*f_hat_x_i.real
+    b_n_x_i = -2*f_hat_x_i.imag
+
+    # compute Fourier coefficients for dictionary terms
+    a_n_Theta = np.zeros((len(t_out),Theta.shape[1]))
+    b_n_Theta = np.zeros((len(t_out),Theta.shape[1]))
+    for i in range(0,Theta.shape[1]):
+        f_hat = np.fft.fft(Theta[:,i].flatten())    # FFT
+        f_hat = f_hat/N   # Fourier coefficients
+        a_n_Theta[:,i] = 2*f_hat.real
+        b_n_Theta[:,i] = -2*f_hat.imag
+
+    # compute A and b
+    A = b_n_Theta[array_n,:]
+    N_n = len(array_n)
+    b = np.zeros((N_n,1))
+    for i in range(0,N_n):
+        n = array_n[i]
         b[i] = -n*omega0*a_n_x_i[n]
 
     return A,b
@@ -1099,6 +1157,118 @@ def WSINDy_Fourier_FFT_4D(t_out,X_out,N_freq,params_regression,polyOrder=2):
     w = np.hstack([w1,w2,w3,w4])
     return w
 
+def WSINDy_FFT_PSD_2D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+    arr_x = X_out[:,0]
+    arr_y = X_out[:,1]
+    # set n-values
+    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq)
+    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq)
+    # library
+    Theta,_ = calcTheta_poly_2D(t_out,arr_x,arr_y,order=polyOrder)
+    # A and b
+    A1,b1 = constructLS_FFT_PSD(t_out,arr_x,arr_n_x,Theta)
+    A2,b2 = constructLS_FFT_PSD(t_out,arr_y,arr_n_y,Theta)
+    # sparse regressions
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A1,b1,params_regression)
+        w2 = sparseRegression_autoLambda(A2,b2,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A1,b1,params_regression)
+        w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
+
+    w = np.hstack([w1,w2])
+    return w
+
+def WSINDy_FFT_PSD_3D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+    arr_x = X_out[:,0]
+    arr_y = X_out[:,1]
+    arr_z = X_out[:,2]
+    # set n-values
+    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq)
+    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq)
+    arr_n_z = getFreqInds_PSD_multiTaper(t_out,arr_z,N_freq)
+    # library
+    Theta,_ = calcTheta_poly_3D(t_out,arr_x,arr_y,arr_z,order=polyOrder)
+    # A and b
+    A1,b1 = constructLS_FFT_PSD(t_out,arr_x,arr_n_x,Theta)
+    A2,b2 = constructLS_FFT_PSD(t_out,arr_y,arr_n_y,Theta)
+    A3,b3 = constructLS_FFT_PSD(t_out,arr_z,arr_n_z,Theta)
+    # sparse regressions
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A1,b1,params_regression)
+        w2 = sparseRegression_autoLambda(A2,b2,params_regression)
+        w3 = sparseRegression_autoLambda(A3,b3,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A1,b1,params_regression)
+        w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
+        w3 = sparseRegression_prescribedLambda(A3,b3,params_regression)
+
+    w = np.hstack([w1,w2,w3])
+    return w
+
+def WSINDy_FFT_PSD_4D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+    arr_x = X_out[:,0]
+    arr_y = X_out[:,1]
+    arr_z = X_out[:,2]
+    arr_w = X_out[:,3]
+    # set n-values
+    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq)
+    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq)
+    arr_n_z = getFreqInds_PSD_multiTaper(t_out,arr_z,N_freq)
+    arr_n_w = getFreqInds_PSD_multiTaper(t_out,arr_w,N_freq)
+    # library
+    Theta,_ = calcTheta_poly_4D(t_out,arr_x,arr_y,arr_z,arr_w,order=polyOrder)
+    # A and b
+    A1,b1 = constructLS_FFT_PSD(t_out,arr_x,arr_n_x,Theta)
+    A2,b2 = constructLS_FFT_PSD(t_out,arr_y,arr_n_y,Theta)
+    A3,b3 = constructLS_FFT_PSD(t_out,arr_z,arr_n_z,Theta)
+    A4,b4 = constructLS_FFT_PSD(t_out,arr_w,arr_n_w,Theta)
+    # sparse regressions
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A1,b1,params_regression)
+        w2 = sparseRegression_autoLambda(A2,b2,params_regression)
+        w3 = sparseRegression_autoLambda(A3,b3,params_regression)
+        w4 = sparseRegression_autoLambda(A4,b4,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A1,b1,params_regression)
+        w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
+        w3 = sparseRegression_prescribedLambda(A3,b3,params_regression)
+        w4 = sparseRegression_prescribedLambda(A4,b4,params_regression)
+
+    w = np.hstack([w1,w2,w3,w4])
+    return w
+
+def WSINDy_FFT_FFT_3D(t_out,X_out,X_clean,N_freq,params_regression,polyOrder=2):
+    omega0 = 2*np.pi/(t_out[-1]-t_out[0])
+    arr_x = X_out[:,0]
+    arr_y = X_out[:,1]
+    arr_z = X_out[:,2]
+    # set n-values
+    arr_n_x = getFreqInds_FFT(t_out,X_clean[:,0],N_freq)
+    arr_n_y = getFreqInds_FFT(t_out,X_clean[:,1],N_freq)
+    arr_n_z = getFreqInds_FFT(t_out,X_clean[:,2],N_freq)
+    # library
+    Theta,_ = calcTheta_poly_3D(t_out,arr_x,arr_y,arr_z,order=polyOrder)
+    # A and b
+    A1,b1 = constructLS_FFT_PSD(t_out,arr_x,arr_n_x,Theta)
+    A2,b2 = constructLS_FFT_PSD(t_out,arr_y,arr_n_y,Theta)
+    A3,b3 = constructLS_FFT_PSD(t_out,arr_z,arr_n_z,Theta)
+    # sparse regressions
+    if params_regression["lambda_sparse"] == "auto":
+        w1 = sparseRegression_autoLambda(A1,b1,params_regression)
+        w2 = sparseRegression_autoLambda(A2,b2,params_regression)
+        w3 = sparseRegression_autoLambda(A3,b3,params_regression)
+    else:
+        w1 = sparseRegression_prescribedLambda(A1,b1,params_regression)
+        w2 = sparseRegression_prescribedLambda(A2,b2,params_regression)
+        w3 = sparseRegression_prescribedLambda(A3,b3,params_regression)
+
+    w = np.hstack([w1,w2,w3])
+    return w
+
 # ---error evaluations---
 def errorEval(w_true,w_ident):
     # relative error norm
@@ -1146,3 +1316,48 @@ def batchErrorEval(w_true,arr_w):
     }
 
     return results
+
+# ---plotting function---
+def plotWithQuartiles(x,mean,q1,q3,label,color):
+    plt.plot(x,mean,label=label,color=color)
+    plt.fill_between(x,q1,q3,color=color,alpha=0.5)
+
+def plotResult(data):
+    arr_sig_NR = data["arr_sig_NR"].flatten()
+    arr_w_SINDy = data["arr_w_SINDy"]
+    arr_w_bump = data["arr_w_bumpWSINDy"]
+    arr_w_fft = data["arr_w_FFTWSINDy"]
+    w_true = data["w_true"]
+
+    # statistics
+    res_SINDy = batchErrorEval(w_true,arr_w_SINDy)
+    res_bump = batchErrorEval(w_true,arr_w_bump)
+    res_fft = batchErrorEval(w_true,arr_w_fft)
+
+    # Noise level vs. coefficient error
+    plt.figure()
+    plotWithQuartiles(arr_sig_NR,res_SINDy["error_mean"],res_SINDy["error_q1"],res_SINDy["error_q3"],"SINDy","C0")
+    plotWithQuartiles(arr_sig_NR,res_bump["error_mean"],res_bump["error_q1"],res_bump["error_q3"],"WSINDy-Bump","C1")
+    plotWithQuartiles(arr_sig_NR, res_fft["error_mean"],res_fft["error_q1"],res_fft["error_q3"],"WSINDy-FFT","C2")
+    # plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Noise level")
+    plt.ylabel("Relative Coefficient Error")
+    # plt.title("Lotka-Volterra")
+    plt.legend()
+    plt.grid(True)
+
+    # Noise level vs. TPR
+    plt.figure()
+    plt.ylim(0,1.0)
+    plotWithQuartiles(arr_sig_NR,res_SINDy["TPR_mean"],res_SINDy["TPR_q1"],res_SINDy["TPR_q3"],"SINDy","C0")
+    plotWithQuartiles(arr_sig_NR, res_bump["TPR_mean"],res_bump["TPR_q1"],res_bump["TPR_q3"],"WSINDy-Bump","C1")
+    plotWithQuartiles(arr_sig_NR, res_fft["TPR_mean"],res_fft["TPR_q1"],res_fft["TPR_q3"],"WSINDy-FFT","C2")
+    # plt.xscale("log")
+    # plt.yscale("log")
+    plt.xlabel("Noise level")
+    plt.ylabel("True Positive Ratio (TPR)")
+    plt.legend()
+    plt.grid(True)
+
+    plt.show()
