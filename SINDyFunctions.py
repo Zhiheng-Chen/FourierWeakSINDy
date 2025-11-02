@@ -1157,13 +1157,13 @@ def WSINDy_Fourier_FFT_4D(t_out,X_out,N_freq,params_regression,polyOrder=2):
     w = np.hstack([w1,w2,w3,w4])
     return w
 
-def WSINDy_FFT_PSD_2D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+def WSINDy_FFT_PSD_2D(t_out,X_out,N_freq,params_regression,polyOrder=2,bandwidth=15):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
     # set n-values
-    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq)
-    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq)
+    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq,bandwidth=bandwidth)
+    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq,bandwidth=bandwidth)
     # library
     Theta,_ = calcTheta_poly_2D(t_out,arr_x,arr_y,order=polyOrder)
     # A and b
@@ -1180,15 +1180,15 @@ def WSINDy_FFT_PSD_2D(t_out,X_out,N_freq,params_regression,polyOrder=2):
     w = np.hstack([w1,w2])
     return w
 
-def WSINDy_FFT_PSD_3D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+def WSINDy_FFT_PSD_3D(t_out,X_out,N_freq,params_regression,polyOrder=2,bandwidth=15):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
     arr_z = X_out[:,2]
     # set n-values
-    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq)
-    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq)
-    arr_n_z = getFreqInds_PSD_multiTaper(t_out,arr_z,N_freq)
+    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq,bandwidth=bandwidth)
+    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq,bandwidth=bandwidth)
+    arr_n_z = getFreqInds_PSD_multiTaper(t_out,arr_z,N_freq,bandwidth=bandwidth)
     # library
     Theta,_ = calcTheta_poly_3D(t_out,arr_x,arr_y,arr_z,order=polyOrder)
     # A and b
@@ -1208,17 +1208,17 @@ def WSINDy_FFT_PSD_3D(t_out,X_out,N_freq,params_regression,polyOrder=2):
     w = np.hstack([w1,w2,w3])
     return w
 
-def WSINDy_FFT_PSD_4D(t_out,X_out,N_freq,params_regression,polyOrder=2):
+def WSINDy_FFT_PSD_4D(t_out,X_out,N_freq,params_regression,polyOrder=2,bandwidth=15):
     omega0 = 2*np.pi/(t_out[-1]-t_out[0])
     arr_x = X_out[:,0]
     arr_y = X_out[:,1]
     arr_z = X_out[:,2]
     arr_w = X_out[:,3]
     # set n-values
-    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq)
-    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq)
-    arr_n_z = getFreqInds_PSD_multiTaper(t_out,arr_z,N_freq)
-    arr_n_w = getFreqInds_PSD_multiTaper(t_out,arr_w,N_freq)
+    arr_n_x = getFreqInds_PSD_multiTaper(t_out,arr_x,N_freq,bandwidth=bandwidth)
+    arr_n_y = getFreqInds_PSD_multiTaper(t_out,arr_y,N_freq,bandwidth=bandwidth)
+    arr_n_z = getFreqInds_PSD_multiTaper(t_out,arr_z,N_freq,bandwidth=bandwidth)
+    arr_n_w = getFreqInds_PSD_multiTaper(t_out,arr_w,N_freq,bandwidth=bandwidth)
     # library
     Theta,_ = calcTheta_poly_4D(t_out,arr_x,arr_y,arr_z,arr_w,order=polyOrder)
     # A and b
@@ -1279,7 +1279,7 @@ def errorEval(w_true,w_ident):
     N_spurious = np.sum((w_true==0) & (w_ident!=0))
     N_failed = np.sum((w_true!=0) & (w_ident==0))
     # TPR
-    N_correct = np.sum((w_true==0) & (w_ident==0))
+    N_correct = np.sum((w_true!=0) & (w_ident!=0))
     TPR = N_correct/(N_correct+N_spurious+N_failed)   
     return errorNorm_rel,TPR
 
@@ -1318,46 +1318,165 @@ def batchErrorEval(w_true,arr_w):
     return results
 
 # ---plotting function---
-def plotWithQuartiles(x,mean,q1,q3,label,color):
-    plt.plot(x,mean,label=label,color=color)
-    plt.fill_between(x,q1,q3,color=color,alpha=0.5)
+def plotWithQuartiles(x,mean,q1,q3,label,color,ax=None):
+    if ax is None:
+        ax = plt.gca()
+    ax.plot(x,mean,label=label,color=color)
+    ax.fill_between(x,q1,q3,color=color,alpha=0.5)
 
-def plotResult(data):
-    arr_sig_NR = data["arr_sig_NR"].flatten()
-    arr_w_SINDy = data["arr_w_SINDy"]
-    arr_w_bump = data["arr_w_bumpWSINDy"]
-    arr_w_fft = data["arr_w_FFTWSINDy"]
+def plotResult(data,data_ps=0,save_path="result.pdf"):
+    if data_ps == 0:
+        arr_sig_NR = data["arr_sig_NR"].flatten()
+        arr_w_SINDy = data["arr_w_SINDy"]
+        arr_w_bump = data["arr_w_bumpWSINDy"]
+        arr_w_fft = data["arr_w_FFTWSINDy"]
+        w_true = data["w_true"]
+
+        res_SINDy = batchErrorEval(w_true, arr_w_SINDy)
+        res_bump = batchErrorEval(w_true, arr_w_bump)
+        res_fft = batchErrorEval(w_true, arr_w_fft)
+    else:
+        arr_sig_NR = data["arr_sig_NR"].flatten()
+        arr_w_SINDy = data_ps["arr_w_SINDy"]
+        arr_w_bump = data_ps["arr_w_WSINDy"]
+        arr_w_fft = data["arr_w_FFTWSINDy"]
+        w_true = data["w_true"]
+        w_true_ps = data_ps["w_true"]
+
+        res_SINDy = batchErrorEval(w_true_ps, arr_w_SINDy)
+        res_bump = batchErrorEval(w_true_ps, arr_w_bump)
+        res_fft = batchErrorEval(w_true, arr_w_fft)
+
+    # Set global font size
+    plt.rcParams.update({'font.size': 14})
+
+    # Create 1x2 subplot
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+    # --- Left: Coefficient Error ---
+    ax = axs[0]
+    plotWithQuartiles(arr_sig_NR, res_SINDy["error_mean"], res_SINDy["error_q1"], res_SINDy["error_q3"], "SINDy (PySINDy)", "C0", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_bump["error_mean"], res_bump["error_q1"], res_bump["error_q3"], "WSINDy (PySINDy)", "C1", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_fft["error_mean"], res_fft["error_q1"], res_fft["error_q3"], "Fourier WSINDy", "C2", ax=ax)
+    ax.set_yscale("log")
+    ax.set_xlabel("Noise Level")
+    ax.set_ylabel("Relative Coefficient Error")
+    ax.grid(True)
+    ax.legend()
+    ax.set_title("(a)")
+
+    # --- Right: True Positive Ratio ---
+    ax = axs[1]
+    ax.set_ylim(0, 1.0)
+    plotWithQuartiles(arr_sig_NR, res_SINDy["TPR_mean"], res_SINDy["TPR_q1"], res_SINDy["TPR_q3"], "SINDy (PySINDy)", "C0", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_bump["TPR_mean"], res_bump["TPR_q1"], res_bump["TPR_q3"], "WSINDy (PySINDy)", "C1", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_fft["TPR_mean"], res_fft["TPR_q1"], res_fft["TPR_q3"], "Fourier WSINDy", "C2", ax=ax)
+    ax.set_xlabel("Noise Level")
+    ax.set_ylabel("True Positive Ratio (TPR)")
+    ax.grid(True)
+    ax.legend()
+    ax.set_title("(b)")
+
+    # Save as PDF
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+
+    print(f"Plot saved to {save_path}")
+
+def plotResult_funcNum(data, save_path="result.pdf"):
+    arr_num_func = data["arr_num_func"].flatten()
+    arr_w_0P2 = data["arr_w_0P2"]
+    arr_w_0P5 = data["arr_w_0P5"]
+    arr_w_0P8 = data["arr_w_0P8"]
     w_true = data["w_true"]
 
     # statistics
-    res_SINDy = batchErrorEval(w_true,arr_w_SINDy)
-    res_bump = batchErrorEval(w_true,arr_w_bump)
-    res_fft = batchErrorEval(w_true,arr_w_fft)
+    res_SINDy = batchErrorEval(w_true, arr_w_0P2)
+    res_bump = batchErrorEval(w_true, arr_w_0P5)
+    res_fft = batchErrorEval(w_true, arr_w_0P8)
 
-    # Noise level vs. coefficient error
-    plt.figure()
-    plotWithQuartiles(arr_sig_NR,res_SINDy["error_mean"],res_SINDy["error_q1"],res_SINDy["error_q3"],"SINDy","C0")
-    plotWithQuartiles(arr_sig_NR,res_bump["error_mean"],res_bump["error_q1"],res_bump["error_q3"],"WSINDy-Bump","C1")
-    plotWithQuartiles(arr_sig_NR, res_fft["error_mean"],res_fft["error_q1"],res_fft["error_q3"],"WSINDy-FFT","C2")
-    # plt.xscale("log")
-    plt.yscale("log")
-    plt.xlabel("Noise level")
-    plt.ylabel("Relative Coefficient Error")
-    # plt.title("Lotka-Volterra")
-    plt.legend()
-    plt.grid(True)
+    # Set global font size
+    plt.rcParams.update({'font.size': 14})
 
-    # Noise level vs. TPR
-    plt.figure()
-    plt.ylim(0,1.0)
-    plotWithQuartiles(arr_sig_NR,res_SINDy["TPR_mean"],res_SINDy["TPR_q1"],res_SINDy["TPR_q3"],"SINDy","C0")
-    plotWithQuartiles(arr_sig_NR, res_bump["TPR_mean"],res_bump["TPR_q1"],res_bump["TPR_q3"],"WSINDy-Bump","C1")
-    plotWithQuartiles(arr_sig_NR, res_fft["TPR_mean"],res_fft["TPR_q1"],res_fft["TPR_q3"],"WSINDy-FFT","C2")
-    # plt.xscale("log")
-    # plt.yscale("log")
-    plt.xlabel("Noise level")
-    plt.ylabel("True Positive Ratio (TPR)")
-    plt.legend()
-    plt.grid(True)
+    # Create 1x2 subplot
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
 
-    plt.show()
+    # --- Left: Coefficient Error ---
+    ax = axs[0]
+    plotWithQuartiles(arr_num_func, res_SINDy["error_mean"], res_SINDy["error_q1"], res_SINDy["error_q3"], "0.2 Noise Ratio", "C0", ax=ax)
+    plotWithQuartiles(arr_num_func, res_bump["error_mean"], res_bump["error_q1"], res_bump["error_q3"], "0.5 Noise Ratio", "C1", ax=ax)
+    plotWithQuartiles(arr_num_func, res_fft["error_mean"], res_fft["error_q1"], res_fft["error_q3"], "0.8 Noise Ratio", "C2", ax=ax)
+    ax.set_yscale("log")
+    ax.set_xlabel("Number of Frequencies")
+    ax.set_ylabel("Relative Coefficient Error")
+    ax.grid(True)
+    ax.legend()
+    ax.set_title("(a)")
+
+    # --- Right: True Positive Ratio ---
+    ax = axs[1]
+    ax.set_ylim(0, 1.0)
+    plotWithQuartiles(arr_num_func, res_SINDy["TPR_mean"], res_SINDy["TPR_q1"], res_SINDy["TPR_q3"], "0.2 Noise Ratio", "C0", ax=ax)
+    plotWithQuartiles(arr_num_func, res_bump["TPR_mean"], res_bump["TPR_q1"], res_bump["TPR_q3"], "0.5 Noise Ratio", "C1", ax=ax)
+    plotWithQuartiles(arr_num_func, res_fft["TPR_mean"], res_fft["TPR_q1"], res_fft["TPR_q3"], "0.8 Noise Ratio", "C2", ax=ax)
+    ax.set_xlabel("Number of Frequencies")
+    ax.set_ylabel("True Positive Ratio (TPR)")
+    ax.grid(True)
+    ax.legend()
+    ax.set_title("(b)")
+
+    # Save as PDF
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+
+    print(f"Plot saved to {save_path}")
+
+def plotResult_bandwidth(data,save_path="result.pdf"):
+    arr_sig_NR = data["arr_sig_NR"].flatten()
+    arr_w_5 = data["arr_w_5"]
+    arr_w_15 = data["arr_w_15"]
+    arr_w_25 = data["arr_w_25"]
+    w_true = data["w_true"]
+
+    res_SINDy = batchErrorEval(w_true, arr_w_5)
+    res_bump = batchErrorEval(w_true, arr_w_15)
+    res_fft = batchErrorEval(w_true, arr_w_25)
+    
+    # Set global font size
+    plt.rcParams.update({'font.size': 14})
+
+    # Create 1x2 subplot
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+    # --- Left: Coefficient Error ---
+    ax = axs[0]
+    plotWithQuartiles(arr_sig_NR, res_SINDy["error_mean"], res_SINDy["error_q1"], res_SINDy["error_q3"], "BW = 5", "C0", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_bump["error_mean"], res_bump["error_q1"], res_bump["error_q3"], "BW = 15", "C1", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_fft["error_mean"], res_fft["error_q1"], res_fft["error_q3"], "BW = 25", "C2", ax=ax)
+    ax.set_yscale("log")
+    ax.set_xlabel("Noise Level")
+    ax.set_ylabel("Relative Coefficient Error")
+    ax.grid(True)
+    ax.legend()
+    ax.set_title("(a)")
+
+    # --- Right: True Positive Ratio ---
+    ax = axs[1]
+    ax.set_ylim(0, 1.0)
+    plotWithQuartiles(arr_sig_NR, res_SINDy["TPR_mean"], res_SINDy["TPR_q1"], res_SINDy["TPR_q3"], "BW = 5", "C0", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_bump["TPR_mean"], res_bump["TPR_q1"], res_bump["TPR_q3"], "BW = 15", "C1", ax=ax)
+    plotWithQuartiles(arr_sig_NR, res_fft["TPR_mean"], res_fft["TPR_q1"], res_fft["TPR_q3"], "BW = 25", "C2", ax=ax)
+    ax.set_xlabel("Noise Level")
+    ax.set_ylabel("True Positive Ratio (TPR)")
+    ax.grid(True)
+    ax.legend()
+    ax.set_title("(b)")
+
+    # Save as PDF
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+
+    print(f"Plot saved to {save_path}")
