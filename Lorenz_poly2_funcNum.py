@@ -23,7 +23,7 @@ w_true = trueCoeffMatrix_Lorenz(exps,sigma,rho,beta)
 # ---0.2 noise level---
 # generate trajectories
 MD = t_sim*gridDensity*3
-arr_num_func = np.linspace(1,250,30,dtype=int)
+arr_num_func = np.linspace(1,200,30,dtype=int)
 N_noise = 20   # number of noises to try at each test function number
 arr_X_noisy = np.zeros((X_clean.shape[0],X_clean.shape[1],len(arr_num_func),N_noise)) # allocte a 4-way array for storing noisy trajectory data
 
@@ -60,7 +60,7 @@ print("!")
 # ---0.5 noise level---
 # generate trajectories
 MD = t_sim*gridDensity*3
-arr_num_func = np.linspace(1,250,30,dtype=int)
+arr_num_func = np.linspace(1,200,30,dtype=int)
 N_noise = 20   # number of noises to try at each test function number
 arr_X_noisy = np.zeros((X_clean.shape[0],X_clean.shape[1],len(arr_num_func),N_noise)) # allocte a 4-way array for storing noisy trajectory data
 
@@ -97,7 +97,7 @@ print("!")
 # ---0.8 noise level---
 # generate trajectories
 MD = t_sim*gridDensity*3
-arr_num_func = np.linspace(1,250,30,dtype=int)
+arr_num_func = np.linspace(1,200,30,dtype=int)
 N_noise = 20   # number of noises to try at each test function number
 arr_X_noisy = np.zeros((X_clean.shape[0],X_clean.shape[1],len(arr_num_func),N_noise)) # allocte a 4-way array for storing noisy trajectory data
 

@@ -1,7 +1,3 @@
-## Current Progress
-- Fourier weak SINDy with FFT accelerations (sine test functions only)
-  
-## Next Steps
-- Figure out why cosine test functions do not work
-- Try a different attractor
-- Add error bars
+## Fourier Weak SINDy Numerical Experiments
+- `SINDyFunctions.py` contains the core functions
+- Numerical experiments presented in paper and plot generation code are in the main directory
